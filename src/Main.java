@@ -34,7 +34,7 @@ public class Main {
 	 */
 	private static final int MAX_MSG_LENGTH = 2650;
 	
-	private final static int NUM_SHADES = 8;
+	private final static int NUM_SHADES = 11;
 	/**
 	 * The number we have to divide luminance by to get a number between 0-NUM_SHADES
 	 * For example, if we pick <code>NUM_SHADES</code> as 1, we get
@@ -42,7 +42,7 @@ public class Main {
 	 * 
 	 * With this, any luminance / 256 we get will return 0, which is our single possible number.
 	 */
-	private final static int LUMINANCE_FLATTEN = (256 / NUM_SHADES);
+	private final static int LUMINANCE_FLATTEN = 256 % NUM_SHADES == 0 ? (256 / NUM_SHADES) : (256 / NUM_SHADES) + 1;
 	
 	public static void main(String[] args) throws IOException {
 		File f = new File(PATH);
@@ -92,7 +92,7 @@ public class Main {
 				char pixel = getCharFromLuminance(luminance / LUMINANCE_FLATTEN);
 				imageAsChars.append(pixel);
 				
-				// Calcualte average color
+				// Calcualte average HSB
 				
 				// Avoid pure black/pure white
 				int[] imageColorPixel = getRgbArray(bufferedImage.getRGB(x, y));
@@ -187,19 +187,25 @@ public class Main {
 			case 0:
 				return '麤';
 			case 1:
-				return '璽';
+				return '醤';
 			case 2:
 				return '目';
 			case 3:
-				return '王';
+				return '区';
 			case 4:
-				return '干';
+				return '王';
 			case 5:
-				return '三';
+				return '干';
 			case 6:
-				return '二';
+				return '三';
 			case 7:
+				return '十';
+			case 8:
+				return '二';
+			case 9:
 				return '一';
+			case 10:
+				return '＿';
 			default:
 				return '何';
 		}
