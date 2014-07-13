@@ -1,14 +1,16 @@
+import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.math.BigDecimal;
 
 import javax.imageio.ImageIO;
 
 public class Main {
 	
 	private static final String PATH = "res/img.bmp";
-	private static final String PREFIX = "<b><font color=\"#AAAAAA\" size=\"4\">";
+	private static final String PREFIX = "<b><font color=\"%s\" size=\"%s\">";
 	private static final String SUFFIX = "</font></b>";
 	
 	// These are weights on the rgb scale to turn them into luminance. These seemingly magic numbers apparently make the result "account for human perception" based off how our eyes perceive colors differntly.
@@ -21,6 +23,11 @@ public class Main {
 	private static final double QUANT_ERROR_DOWN = 5.0 / 16;
 	private static final double QUANT_ERROR_DOWN_LEFT = 3.0 / 16;
 	private static final double QUANT_ERROR_DOWN_RIGHT = 1.0 / 16;
+	
+	// Constant colors
+	private static final int[] BLACK = { 0, 0, 0 };
+	private static final int[] WHITE = { 255, 255, 255 };
+	private static final int MIN_DIST_FROM_EDGE = 20; // minimum distance from either WHITE/BLACK for it to be considered a color
 	
 	/**
 	 * From trials, this seems to be around the max message length
@@ -45,20 +52,31 @@ public class Main {
 		
 		BufferedImage bufferedImage = ImageIO.read(f);
 		
+		// Set up image array
 		int count = 0;
 		int[][] pixels = getPixelArray(bufferedImage);
+		// The size of our text is width*height of the image as every pixel is a char.
+		// We also add a height again since there will be *height* amount of \n
+		StringBuilder imageAsChars = new StringBuilder(bufferedImage.getHeight() + (bufferedImage.getWidth() * bufferedImage.getHeight()));
 		
-		System.out.println(PREFIX);
+		// Set up average color
+		BigDecimal[] averageHSB = new BigDecimal[3];
+		for (int i = 0; i < averageHSB.length; i++) {
+			averageHSB[i] = BigDecimal.ZERO;
+		}
+		long colorPixelCount = 0;
+		
+		imageRender:
 		for (int y = 0; y < bufferedImage.getHeight(); y++) {
+			imageAsChars.append('\n');
 			for (int x = 0; x < bufferedImage.getWidth(); x++) {
-				
 				// Get pixel and luminance
-				int originalPixel = pixels[y][x];
-				int luminance = getLuminanceFromRGB(originalPixel);
+				int originalPixel = pixels[y][x] & 0xFFFFFF; // mask away opacity
+				int[] originalPixelArray = getRgbArray(originalPixel);
+				int luminance = (int) ((originalPixelArray[0] * WEIGHT_RED) + (originalPixelArray[1] * WEIGHT_GREEN) + (originalPixelArray[2] * WEIGHT_BLUE));
 				
-				// Calculate error caused from palette reduction
-				int colorReducedPixel = colorFromRGB(luminance, luminance, luminance);
-				int[] colorError = getColorDifference(originalPixel, colorReducedPixel);
+				// Calculate error caused from palette reduction by finding the difference between the original pixel and the reduced version
+				int[] colorError = getColorDifference(originalPixelArray, new int[] { luminance, luminance, luminance });
 				
 				// Adjust next pixels based on Floyd-Steinberg dithering ( http://en.wikipedia.org/wiki/Floyd–Steinberg_dithering )
 				if (x < bufferedImage.getWidth() - 1)
@@ -72,14 +90,44 @@ public class Main {
 				
 				// Print char
 				char pixel = getCharFromLuminance(luminance / LUMINANCE_FLATTEN);
-				System.out.print(pixel);
+				imageAsChars.append(pixel);
+				
+				// Calcualte average color
+				
+				// Avoid pure black/pure white
+				int[] imageColorPixel = getRgbArray(bufferedImage.getRGB(x, y));
+				int[] blackDiff = getColorDifference(imageColorPixel, BLACK);
+				int[] whiteDiff = getColorDifference(imageColorPixel, WHITE);
+				if ((blackDiff[0] + blackDiff[1] + blackDiff[2]) >= MIN_DIST_FROM_EDGE && (whiteDiff[0] + whiteDiff[1] + whiteDiff[2]) >= MIN_DIST_FROM_EDGE) {
+					float[] hsb = new float[3];
+					Color.RGBtoHSB(imageColorPixel[0], imageColorPixel[1], imageColorPixel[2], hsb);
+					averageHSB[0] = averageHSB[0].add(BigDecimal.valueOf(hsb[0]));
+					averageHSB[1] = averageHSB[1].add(BigDecimal.valueOf(hsb[1]));
+					averageHSB[2] = averageHSB[2].add(BigDecimal.valueOf(hsb[2]));
+					colorPixelCount++;
+				}
+				
+				// Increment count
 				count++;
 				if (count >= MAX_MSG_LENGTH) {
-					return;
+					break imageRender;
 				}
 			}
-			System.out.println();
 		}
+		
+		float averageHue = (float) (averageHSB[0].doubleValue() / colorPixelCount);
+		float averageSaturation = (float) (averageHSB[1].doubleValue() / colorPixelCount);
+		float averageBrightness = (float) (averageHSB[2].doubleValue() / colorPixelCount);
+		
+		// make sure the picture is visible
+		if (averageBrightness < 0.5)
+			averageBrightness = 0.5f;
+		
+		int[] averageColors = getRgbArray(Color.HSBtoRGB(averageHue, averageSaturation, averageBrightness));
+		String colorCode = "#" + Integer.toHexString(averageColors[0]) + Integer.toHexString(averageColors[1]) + Integer.toHexString(averageColors[2]);
+		
+		System.out.printf(PREFIX, colorCode, "4");
+		System.out.println(imageAsChars.toString());
 		System.out.print(SUFFIX);
 	}
 	
@@ -107,29 +155,22 @@ public class Main {
 		rgb[2] += colorError[2] * quantError;
 		rgb[2] = rgb[2] > 255 ? 255 : rgb[2];
 		
-		pixels[y][x] = colorFromRGB(rgb[0], rgb[1], rgb[2]);
+		pixels[y][x] = (rgb[0] << 16) + (rgb[1] << 8) + rgb[2];
 		
 	}
 	
-	private static int[] getColorDifference(int rgb1, int rgb2) {
-		int[] rgbArray1 = getRgbArray(rgb1);
-		int[] rgbArray2 = getRgbArray(rgb2);
-		
+	private static int[] getColorDifference(int[] rgb1, int[] rgb2) {
 		int[] rgbResult = new int[3];
-		rgbResult[0] = rgbArray1[0] - rgbArray2[0];
+		rgbResult[0] = rgb1[0] - rgb2[0];
 		rgbResult[0] = rgbResult[0] > 0 ? rgbResult[0] : -rgbResult[0];
 		
-		rgbResult[1] = rgbArray1[1] - rgbArray2[1];
+		rgbResult[1] = rgb1[1] - rgb2[1];
 		rgbResult[1] = rgbResult[1] > 0 ? rgbResult[1] : -rgbResult[1];
 		
-		rgbResult[2] = rgbArray1[2] - rgbArray2[2];
+		rgbResult[2] = rgb1[2] - rgb2[2];
 		rgbResult[1] = rgbResult[1] > 0 ? rgbResult[1] : -rgbResult[1];
 		
 		return rgbResult;
-	}
-	
-	private static int colorFromRGB(int r, int g, int b) {
-		return b + (g << 8) + (r << 16);
 	}
 	
 	private static int[] getRgbArray(int rgb) {
@@ -139,18 +180,6 @@ public class Main {
 		rgbArray[2] = rgb & 0xFF;
 		
 		return rgbArray;
-	}
-	
-	private static int getLuminanceFromRGB(int rgb) {
-		// First extract colors
-		int[] rgbArray = getRgbArray(rgb);
-		
-		// Now multiply by weights
-		rgbArray[0] *= WEIGHT_RED;
-		rgbArray[1] *= WEIGHT_GREEN;
-		rgbArray[2] *= WEIGHT_BLUE;
-		
-		return (rgbArray[0] + rgbArray[1] + rgbArray[2]);
 	}
 	
 	private static char getCharFromLuminance(int luminance) {
