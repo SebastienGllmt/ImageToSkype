@@ -10,12 +10,12 @@ import javax.imageio.ImageIO;
 public class Main {
 	
 	private static final String PATH = "res/img.bmp";
-	private static final String prefix = "<b><font size=\"4\">";
-	private static final String suffix = "</font></b>";
+	private static final String PREFIX = "<b><font size=\"4\">";
+	private static final String SUFFIX = "</font></b>";
 	
-	private static final Supplier<Pixel> blackPixelSupplier = BlackPixel::new;
-	private static final Supplier<Pixel> whitePixelSupplier = WhitePixel::new;
-	private static final Supplier<Pixel> unknownPixelSupplier = UnknownPixel::new;
+	private static final Supplier<BlackPixel> BLACK_PIXEL_SUPPLIER = BlackPixel::new;
+	private static final Supplier<WhitePixel> WHITE_PIXEL_SUPPLIER = WhitePixel::new;
+	private static final Supplier<UnknownPixel> UNKNOWN_PIXEL_SUPPLIER = UnknownPixel::new;
 	
 	public static void main(String[] args) throws IOException {
 		File f = new File(PATH);
@@ -25,26 +25,26 @@ public class Main {
 		
 		BufferedImage img = ImageIO.read(f);
 		
-		Supplier<Pixel> pixelCreator = null;
+		Supplier<? extends Pixel> pixelCreator = null;
 		
-		System.out.println(prefix);
+		System.out.println(PREFIX);
 		for (int y = 0; y < img.getHeight(); y++) {
 			for (int x = 0; x < img.getWidth(); x++) {
 				int color = img.getRGB(x, y);
 				
 				if (color == Color.BLACK.getRGB()) {
-					pixelCreator = blackPixelSupplier;
+					pixelCreator = BLACK_PIXEL_SUPPLIER;
 				} else if (color == Color.WHITE.getRGB()) {
-					pixelCreator = whitePixelSupplier;
+					pixelCreator = WHITE_PIXEL_SUPPLIER;
 				} else {
-					pixelCreator = unknownPixelSupplier;
+					pixelCreator = UNKNOWN_PIXEL_SUPPLIER;
 				}
 				
 				System.out.print(pixelCreator.get().getPixel());
 			}
 			System.out.println();
 		}
-		System.out.print(suffix);
+		System.out.print(SUFFIX);
 	}
 }
 
