@@ -13,9 +13,18 @@ public class Main {
 	private static final String PREFIX = "<b><font size=\"4\">";
 	private static final String SUFFIX = "</font></b>";
 	
-	private static final IntSupplier BLACK_PIXEL_SUPPLIER = () -> '麤';		// the char that looked the most like a black box while being monosized w/ other Chinese/Japanese symbols
-	private static final IntSupplier WHITE_PIXEL_SUPPLIER = () -> '一';		// the char that looked the most empty while being monosized w/ other Chinese/Japanese symbols
-	private static final IntSupplier UNKNOWN_PIXEL_SUPPLIER = () -> '何';	// the char representing a non-black/white pixel
+	/**
+	 * Char that looked the most like a black box while being monosized w/ other Chinese/Japanese symbols
+	 */
+	private static final IntSupplier BLACK_PIXEL_SUPPLIER = () -> '麤';
+	/**
+	 * Char that looked the most empty while being monosized w/ other Chinese/Japanese symbols
+	 */
+	private static final IntSupplier WHITE_PIXEL_SUPPLIER = () -> '一';
+	/**
+	 * Char representing a non-black/white pixel
+	 */
+	private static final IntSupplier UNKNOWN_PIXEL_SUPPLIER = () -> '何';
 	
 	public static void main(String[] args) throws IOException {
 		File f = new File(PATH);
