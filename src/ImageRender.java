@@ -7,9 +7,8 @@ import java.math.BigDecimal;
 
 import javax.imageio.ImageIO;
 
-public class Main {
+public class ImageRender {
 	
-	private static final String PATH = "res/img.bmp";
 	private static final String PREFIX = "<b><font color=\"%s\" size=\"%s\">";
 	private static final String SUFFIX = "</font></b>";
 	
@@ -44,27 +43,30 @@ public class Main {
 	 */
 	private final static int LUMINANCE_FLATTEN = 256 % NUM_SHADES == 0 ? (256 / NUM_SHADES) : (256 / NUM_SHADES) + 1;
 	
-	public static void main(String[] args) throws IOException {
-		File f = new File(PATH);
+	public static BufferedImage getImage(String path) throws IOException {
+		File f = new File(path);
 		if (!f.exists()) {
 			throw new FileNotFoundException(f.getAbsolutePath() + " could not be found");
 		}
 		
-		BufferedImage bufferedImage = ImageIO.read(f);
+		BufferedImage bufferedImage = null;
+		try {
+			bufferedImage = ImageIO.read(f);
+		} catch (IOException e) {
+			throw new IOException("IO error while trying to read image at " + f.getAbsolutePath());
+		}
 		
+		return bufferedImage;
+	}
+	
+	public static String render(BufferedImage bufferedImage) {
 		// Set up image array
 		int count = 0;
 		int[][] pixels = getPixelArray(bufferedImage);
 		// The size of our text is width*height of the image as every pixel is a char.
 		// We also add a height again since there will be *height* amount of \n
-		StringBuilder imageAsChars = new StringBuilder(bufferedImage.getHeight() + (bufferedImage.getWidth() * bufferedImage.getHeight()));
-		
-		// Set up average color
-		BigDecimal[] averageHSB = new BigDecimal[3];
-		for (int i = 0; i < averageHSB.length; i++) {
-			averageHSB[i] = BigDecimal.ZERO;
-		}
-		long colorPixelCount = 0;
+		// We also add an extra one for the last line
+		StringBuilder imageAsChars = new StringBuilder((1 + bufferedImage.getHeight()) + (bufferedImage.getWidth() * bufferedImage.getHeight()));
 		
 		imageRender:
 		for (int y = 0; y < bufferedImage.getHeight(); y++) {
@@ -92,9 +94,32 @@ public class Main {
 				char pixel = getCharFromLuminance(luminance / LUMINANCE_FLATTEN);
 				imageAsChars.append(pixel);
 				
-				// Calcualte average HSB
+				// Increment count
+				count++;
+				if (count >= MAX_MSG_LENGTH) {
+					break imageRender;
+				}
+			}
+		}
+		
+		imageAsChars.append('\n');
+		
+		return imageAsChars.toString();
+	}
+	
+	public static String getBestFitColorCode(BufferedImage bufferedImage) {
+		// Set up average color
+		BigDecimal[] averageHSB = new BigDecimal[3];
+		for (int i = 0; i < averageHSB.length; i++) {
+			averageHSB[i] = BigDecimal.ZERO;
+		}
+		long colorPixelCount = 0;
+		
+		// Calcualte average HSB
+		for (int y = 0; y < bufferedImage.getHeight(); y++) {
+			for (int x = 0; x < bufferedImage.getWidth(); x++) {
 				
-				// Avoid pure black/pure white
+				// Avoid pure black/pure white by checking if the pixel is at least some distance away from them
 				int[] imageColorPixel = getRgbArray(bufferedImage.getRGB(x, y));
 				int[] blackDiff = getColorDifference(imageColorPixel, BLACK);
 				int[] whiteDiff = getColorDifference(imageColorPixel, WHITE);
@@ -105,12 +130,6 @@ public class Main {
 					averageHSB[1] = averageHSB[1].add(BigDecimal.valueOf(hsb[1]));
 					averageHSB[2] = averageHSB[2].add(BigDecimal.valueOf(hsb[2]));
 					colorPixelCount++;
-				}
-				
-				// Increment count
-				count++;
-				if (count >= MAX_MSG_LENGTH) {
-					break imageRender;
 				}
 			}
 		}
@@ -124,11 +143,11 @@ public class Main {
 			averageBrightness = 0.5f;
 		
 		int[] averageColors = getRgbArray(Color.HSBtoRGB(averageHue, averageSaturation, averageBrightness));
-		String colorCode = "#" + Integer.toHexString(averageColors[0]) + Integer.toHexString(averageColors[1]) + Integer.toHexString(averageColors[2]);
-		
-		System.out.printf(PREFIX, colorCode, "4");
-		System.out.println(imageAsChars.toString());
-		System.out.print(SUFFIX);
+		return "#" + Integer.toHexString(averageColors[0]) + Integer.toHexString(averageColors[1]) + Integer.toHexString(averageColors[2]);
+	}
+	
+	public static String getFormattedHTML(String content, String colorCode, String size) {
+		return String.format(PREFIX, colorCode, size) + content + SUFFIX;
 	}
 	
 	private static int[][] getPixelArray(BufferedImage bufferedImage) {
