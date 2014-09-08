@@ -3,32 +3,44 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.GridLayout;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileFilter;
 
 public class Launcher {
 	
 	private static final String DEFAULT_PATH = "res/img.bmp";
 	private static final String NAME = "ImageToSkype";
-	private static final Font SKYPE_FONT = new Font("MS Gothic", Font.BOLD, 6);
+	private static final int DEFAULT_TEXT_SIZE = 4;
+	private static final Font SKYPE_FONT = new Font("MS Gothic", Font.BOLD, DEFAULT_TEXT_SIZE);
 	private static final String SKYPE_BACKGROUND_COLOR = "#E6F8FC";
 	
 	private static JFrame currFrame;
 	private final static JFileChooser fileChooser = new JFileChooser();
 	
 	// Generate fields for the component storing the last used color/size for text. Also give them default values for when you launch the program
-	private String lastColor = "#";
-	private String lastSize = "4";
+	private String lastColor = "";
+	private static final int COLOR_TEXT_LENGTH = 7; // # sign and 6 numbers
+	
+	private String lastSize = String.valueOf(DEFAULT_TEXT_SIZE);
+	private static final int SIZE_TEXT_LENGTH = 2; // doubt anybody will set the size more than 2 digits and expect something reasonable
+	
+	private static boolean useCustomColor = false;
 	
 	public static void main(String[] args) throws IOException {
 		FileFilter filter = new FileFilter() {
@@ -46,34 +58,86 @@ public class Launcher {
 		};
 		fileChooser.setFileFilter(filter);
 		fileChooser.setCurrentDirectory(new File("res/"));
-		new Launcher(DEFAULT_PATH);
+		fileChooser.setSelectedFile(new File(DEFAULT_PATH));
+		new Launcher();
 	}
 	
-	public Launcher(String path) throws IOException {
+	public Launcher() {
 		JFrame frame = new JFrame(NAME);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
 		JPanel mainGrid = new JPanel();
 		mainGrid.setLayout(new BoxLayout(mainGrid, BoxLayout.Y_AXIS));
 		
-		JPanel optionsPanel = new JPanel(new FlowLayout());
+		JPanel optionsPanel = new JPanel(new GridLayout(4, 1));
 		
-		JTextField optionsColor = new JTextField(lastColor);
-		JTextField optionsSize = new JTextField(lastSize);
-		JButton filePicker = new JButton("Render File");
-		filePicker.addActionListener(l -> {
-			if (fileChooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-				try {
-					new Launcher(fileChooser.getSelectedFile().toString());
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+		JPanel colorCheckboxPanel = new JPanel(new FlowLayout());
+		JCheckBox customColor = new JCheckBox("Use Custom Color", useCustomColor);
+		customColor.addActionListener(l -> useCustomColor = !useCustomColor);
+		colorCheckboxPanel.add(customColor);
+		
+		JPanel fontColorPanel = new JPanel(new GridLayout(1, 2));
+		JLabel optionsColorLabel = new JLabel("Text color");
+		JTextField optionsColor = new JTextField(lastColor, COLOR_TEXT_LENGTH);
+		optionsColor.getDocument().addDocumentListener(new DocumentListener() {
+			@Override
+			public void insertUpdate(DocumentEvent e) {
+				lastColor = optionsColor.getText();
+			}
+			
+			@Override
+			public void removeUpdate(DocumentEvent e) {
+				lastColor = optionsColor.getText();
+			}
+			
+			@Override
+			public void changedUpdate(DocumentEvent e) {
+				lastColor = optionsColor.getText();
 			}
 		});
+		fontColorPanel.add(optionsColorLabel);
+		fontColorPanel.add(optionsColor);
 		
-		optionsPanel.add(optionsColor);
-		optionsPanel.add(optionsSize);
-		optionsPanel.add(filePicker);
+		JPanel fontSizePanel = new JPanel(new GridLayout(1, 2));
+		JLabel optionsSizeLabel = new JLabel("Text color");
+		JTextField optionsSize = new JTextField(lastSize, SIZE_TEXT_LENGTH);
+		optionsSize.getDocument().addDocumentListener(new DocumentListener() {
+			@Override
+			public void insertUpdate(DocumentEvent e) {
+				lastSize = optionsColor.getText();
+			}
+			
+			@Override
+			public void removeUpdate(DocumentEvent e) {
+				lastSize = optionsColor.getText();
+			}
+			
+			@Override
+			public void changedUpdate(DocumentEvent e) {
+				lastSize = optionsColor.getText();
+			}
+		});
+		fontSizePanel.add(optionsSizeLabel);
+		fontSizePanel.add(optionsSize);
+		
+		JPanel loadImagePanel = new JPanel(new GridLayout(1, 2));
+		JButton filePicker = new JButton("New File");
+		filePicker.addActionListener(l -> {
+			// If we select a new file to render
+				if (fileChooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+					// Render it in a background thread and then swap them when it's done
+					SwingUtilities.invokeLater(() -> new Launcher());
+				}
+			});
+		JButton refresh = new JButton("Refresh");
+		refresh.addActionListener(l -> new Launcher());
+		loadImagePanel.add(filePicker);
+		loadImagePanel.add(refresh);
+		
+		optionsPanel.add(colorCheckboxPanel);
+		optionsPanel.add(fontColorPanel);
+		optionsPanel.add(fontSizePanel);
+		optionsPanel.add(loadImagePanel);
 		
 		mainGrid.add(optionsPanel);
 		
@@ -83,23 +147,39 @@ public class Launcher {
 		//JEditorPanel 
 		BufferedImage image;
 		try {
-			image = ImageRender.getImage(path);
+			image = ImageRender.getImage(fileChooser.getSelectedFile());
 			String content = ImageRender.render(image);
+			
+			String color = null;
+			if (useCustomColor) {
+				
+				/* If string is of format:
+				 * Can start with optional # sign
+				 * Followed by 6 digits/letters from Hexadecimal
+				 * All of this must be on its own line with nothing preceding/following
+				 */
+				if (lastColor.matches("^#?([0-9]|[A-F]){6}$")) {
+					if (!lastColor.startsWith("#")) {
+						color = "#" + lastColor;
+					} else {
+						color = lastColor;
+					}
+				}
+			}
+			if (color == null) {
+				color = ImageRender.getBestFitColorCode(image);
+			}
+			String textSize = lastSize;
+			if (textSize.matches("^[0-9]+$")) {} else {
+				textSize = String.valueOf(DEFAULT_TEXT_SIZE);
+			}
+			
+			preview.setText(ImageRender.getFormattedHTML(content, color, textSize));
+			preview.setForeground(Color.decode(color));
 			
 			Dimension stringDimension = getMinimumStringDimension(image.getGraphics(), content, SKYPE_FONT);
 			preview.setMinimumSize(stringDimension);
 			
-			String optionsColorText = optionsColor.getText();
-			
-			String color;
-			if (optionsColorText.matches("^#([0-9]|[A-F])+$")) {
-				color = optionsColorText;
-			} else {
-				color = ImageRender.getBestFitColorCode(image);
-			}
-			
-			preview.setText(ImageRender.getFormattedHTML(content, color, optionsSize.getText()));
-			preview.setForeground(Color.decode(color));
 		} catch (IOException e) {
 			preview.setText("Failed to load image");
 		}
@@ -117,6 +197,7 @@ public class Launcher {
 		frame.setLocationRelativeTo(null);
 		frame.setResizable(false);
 		
+		// Swap the current frame with the new one once it's done being created
 		if (currFrame != null) {
 			currFrame.dispose();
 		}
