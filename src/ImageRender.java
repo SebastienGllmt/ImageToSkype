@@ -1,7 +1,6 @@
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
 
@@ -43,12 +42,7 @@ public class ImageRender {
 	 */
 	private final static int LUMINANCE_FLATTEN = 256 % NUM_SHADES == 0 ? (256 / NUM_SHADES) : (256 / NUM_SHADES) + 1;
 	
-	public static BufferedImage getImage(String path) throws IOException {
-		File f = new File(path);
-		if (!f.exists()) {
-			throw new FileNotFoundException(f.getAbsolutePath() + " could not be found");
-		}
-		
+	public static BufferedImage getImage(File f) throws IOException {
 		BufferedImage bufferedImage = null;
 		try {
 			bufferedImage = ImageIO.read(f);
@@ -126,9 +120,9 @@ public class ImageRender {
 				if ((blackDiff[0] + blackDiff[1] + blackDiff[2]) >= MIN_DIST_FROM_EDGE && (whiteDiff[0] + whiteDiff[1] + whiteDiff[2]) >= MIN_DIST_FROM_EDGE) {
 					float[] hsb = new float[3];
 					Color.RGBtoHSB(imageColorPixel[0], imageColorPixel[1], imageColorPixel[2], hsb);
-					averageHSB[0] = averageHSB[0].add(BigDecimal.valueOf(hsb[0]));
-					averageHSB[1] = averageHSB[1].add(BigDecimal.valueOf(hsb[1]));
-					averageHSB[2] = averageHSB[2].add(BigDecimal.valueOf(hsb[2]));
+					for (int i = 0; i < averageHSB.length; i++) {
+						averageHSB[i] = averageHSB[i].add(BigDecimal.valueOf(hsb[i]));
+					}
 					colorPixelCount++;
 				}
 			}
@@ -164,31 +158,20 @@ public class ImageRender {
 	
 	private static void FixQuantError(int[][] pixels, int x, int y, int[] colorError, double quantError) {
 		int[] rgb = getRgbArray(pixels[y][x]);
-		
-		rgb[0] += colorError[0] * quantError;
-		rgb[0] = rgb[0] > 255 ? 255 : rgb[0];
-		
-		rgb[1] += colorError[1] * quantError;
-		rgb[1] = rgb[1] > 255 ? 255 : rgb[1];
-		
-		rgb[2] += colorError[2] * quantError;
-		rgb[2] = rgb[2] > 255 ? 255 : rgb[2];
-		
+		for (int i = 0; i < rgb.length; i++) {
+			rgb[i] += colorError[i] * quantError;
+			rgb[i] = rgb[i] > 255 ? 255 : rgb[i];
+		}
 		pixels[y][x] = (rgb[0] << 16) + (rgb[1] << 8) + rgb[2];
 		
 	}
 	
 	private static int[] getColorDifference(int[] rgb1, int[] rgb2) {
 		int[] rgbResult = new int[3];
-		rgbResult[0] = rgb1[0] - rgb2[0];
-		rgbResult[0] = rgbResult[0] > 0 ? rgbResult[0] : -rgbResult[0];
-		
-		rgbResult[1] = rgb1[1] - rgb2[1];
-		rgbResult[1] = rgbResult[1] > 0 ? rgbResult[1] : -rgbResult[1];
-		
-		rgbResult[2] = rgb1[2] - rgb2[2];
-		rgbResult[1] = rgbResult[1] > 0 ? rgbResult[1] : -rgbResult[1];
-		
+		for (int i = 0; i < rgbResult.length; i++) {
+			rgbResult[i] = rgb1[i] - rgb2[i];
+			rgbResult[i] = rgbResult[i] > 0 ? rgbResult[i] : -rgbResult[i];
+		}
 		return rgbResult;
 	}
 	
